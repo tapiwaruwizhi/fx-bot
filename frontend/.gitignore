@@ -25,3 +25,5 @@ coverage/
 *.iml
 .DS_Store
 Thumbs.db
+
+.vercel-flutter/
