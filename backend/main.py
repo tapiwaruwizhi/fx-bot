@@ -118,7 +118,7 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(refresh_news, "interval", seconds=settings.news_refresh_secs)
     scheduler.add_job(refresh_prices, "interval", seconds=settings.prices_refresh_secs)
     scheduler.add_job(refresh_signals, "interval", seconds=settings.signals_refresh_secs)
-    scheduler.add_job(refresh_calendar, "interval", seconds=settings.news_refresh_secs)
+    scheduler.add_job(refresh_calendar, "interval", seconds=settings.calendar_refresh_secs)
     scheduler.start()
     try:
         yield
@@ -141,7 +141,16 @@ app.add_middleware(
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "updated_at": Cache.updated_at.isoformat()}
+    return {
+        "ok": True,
+        "updated_at": Cache.updated_at.isoformat(),
+        "counts": {
+            "news": len(Cache.news),
+            "prices": len(Cache.prices),
+            "signals": len(Cache.signals),
+            "calendar": len(Cache.calendar),
+        },
+    }
 
 
 @app.get("/api/news", response_model=List[NewsItem])

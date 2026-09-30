@@ -13,10 +13,10 @@ from typing import List, Optional
 
 import numpy as np
 import pandas as pd
-import yfinance as yf
 
 from config import settings
 from models import Signal
+from services.market_data import usd_history, pair_series
 
 
 def _rsi(series: pd.Series, period: int = 14) -> pd.Series:
@@ -77,20 +77,20 @@ def _rsi_signal(df: pd.DataFrame, pair: str) -> Optional[Signal]:
 
 
 def generate_signals() -> List[Signal]:
+    try:
+        usd_df = usd_history()
+    except Exception as e:
+        print(f"[signals] failed: {e}")
+        return []
+
     signals: List[Signal] = []
-    for symbol in settings.fx_pairs:
+    for pair in settings.fx_pairs:
         try:
-            df = yf.download(symbol, period="6mo", interval="1d", progress=False, auto_adjust=True)
-            if df.empty:
-                continue
-            # yfinance sometimes returns MultiIndex columns
-            if isinstance(df.columns, pd.MultiIndex):
-                df.columns = df.columns.get_level_values(0)
-            pair = symbol.replace("=X", "")
+            df = pd.DataFrame({"Close": pair_series(pair, usd_df)})
             for fn in (_sma_cross, _rsi_signal):
                 sig = fn(df, pair)
                 if sig:
                     signals.append(sig)
         except Exception as e:
-            print(f"[signals] {symbol} failed: {e}")
+            print(f"[signals] {pair} failed: {e}")
     return signals

@@ -11,16 +11,16 @@ class Settings(BaseSettings):
 
     # Major pairs we track by default
     fx_pairs: List[str] = [
-        "EURUSD=X",
-        "GBPUSD=X",
-        "USDJPY=X",
-        "AUDUSD=X",
-        "USDCAD=X",
-        "USDCHF=X",
-        "NZDUSD=X",
-        "EURJPY=X",
-        "GBPJPY=X",
-        "EURGBP=X",
+        "EURUSD",
+        "GBPUSD",
+        "USDJPY",
+        "AUDUSD",
+        "USDCAD",
+        "USDCHF",
+        "NZDUSD",
+        "EURJPY",
+        "GBPJPY",
+        "EURGBP",
     ]
 
     # News sources (RSS)
@@ -35,7 +35,8 @@ class Settings(BaseSettings):
     # Refresh cadence (seconds)
     news_refresh_secs: int = 300      # 5 min
     signals_refresh_secs: int = 900   # 15 min
-    prices_refresh_secs: int = 60     # 1 min
+    prices_refresh_secs: int = 600    # 10 min (source is daily ECB rates)
+    calendar_refresh_secs: int = 1800 # 30 min (be polite to ForexFactory feed)
 
     # Optional API keys (set in .env)
     newsapi_key: str = ""
