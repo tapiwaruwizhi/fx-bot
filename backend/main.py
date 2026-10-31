@@ -8,13 +8,14 @@ GET  /api/signals         — current signals
 GET  /api/prices          — latest FX prices
 GET  /api/calendar        — economic calendar
 GET  /api/snapshot        — everything in one call (used by dashboard on load)
+GET  /api/account         — MT5 account, open positions, recent auto-trades
 WS   /ws                  — pushes snapshots as they refresh
 """
 from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import List, Set
+from typing import List, Optional, Set
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -26,6 +27,7 @@ from services.news import fetch_all_news
 from services.prices import fetch_prices
 from services.signals import generate_signals
 from services.calendar import fetch_calendar
+from services import mt5_client, trader
 
 
 # --- in-memory cache -------------------------------------------------------
@@ -35,6 +37,7 @@ class Cache:
     prices: List[PriceTick] = []
     signals: List[Signal] = []
     calendar: List[CalendarEvent] = []
+    trades: List[dict] = []  # recent auto-trade actions, newest last
     updated_at: datetime = datetime.now(timezone.utc)
 
     @classmethod
@@ -94,6 +97,11 @@ async def refresh_signals() -> None:
     Cache.updated_at = datetime.now(timezone.utc)
     await hub.broadcast({"type": "signals", "data": [s.model_dump(mode="json") for s in Cache.signals]})
 
+    actions = await asyncio.to_thread(trader.run, Cache.signals)
+    if actions:
+        Cache.trades = (Cache.trades + actions)[-100:]
+        await hub.broadcast({"type": "trades", "data": actions})
+
 
 async def refresh_calendar() -> None:
     Cache.calendar = await fetch_calendar()
@@ -105,6 +113,9 @@ async def refresh_calendar() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if settings.mt5_enabled:
+        await asyncio.to_thread(mt5_client.connect)
+
     # Prime the cache
     await asyncio.gather(
         refresh_news(),
@@ -124,6 +135,7 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         scheduler.shutdown(wait=False)
+        mt5_client.shutdown()
 
 
 app = FastAPI(title="FX Bot", version="0.1.0", lifespan=lifespan)
@@ -149,6 +161,11 @@ def health() -> dict:
             "prices": len(Cache.prices),
             "signals": len(Cache.signals),
             "calendar": len(Cache.calendar),
+        },
+        "mt5": {
+            "enabled": settings.mt5_enabled,
+            "available": mt5_client.mt5 is not None,
+            "auto_trade": settings.auto_trade_enabled,
         },
     }
 
@@ -176,6 +193,18 @@ def get_calendar() -> List[CalendarEvent]:
 @app.get("/api/snapshot", response_model=DashboardSnapshot)
 def get_snapshot() -> DashboardSnapshot:
     return Cache.snapshot()
+
+
+@app.get("/api/account")
+def get_account() -> dict:
+    account: Optional[dict] = mt5_client.account()
+    return {
+        "connected": account is not None,
+        "account": account,
+        "positions": mt5_client.positions() if account else [],
+        "auto_trade_enabled": settings.auto_trade_enabled,
+        "recent_trades": Cache.trades[-20:],
+    }
 
 
 @app.websocket("/ws")

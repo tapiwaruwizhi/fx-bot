@@ -42,6 +42,25 @@ class Settings(BaseSettings):
     newsapi_key: str = ""
     finnhub_key: str = ""
 
+    # MetaTrader 5 (Windows only; terminal must be installed on this machine)
+    mt5_enabled: bool = False
+    mt5_login: int = 0
+    mt5_password: str = ""
+    mt5_server: str = ""              # exactly as shown in the MT5 login dialog
+    mt5_path: str = ""                # optional: full path to terminal64.exe
+    mt5_symbol_suffix: str = ""       # e.g. ".r" if the broker's symbols are EURUSD.r
+    mt5_timeframe: str = "H1"         # bars used for signals: M15, M30, H1, H4, D1
+    mt5_magic: int = 20260930         # tags orders placed by this bot
+    mt5_deviation_points: int = 20    # max slippage
+
+    # Auto-trading (demo accounts only; see services/trader.py)
+    auto_trade_enabled: bool = False
+    auto_trade_volume: float = 0.01   # lots
+    auto_trade_sl_pips: float = 30
+    auto_trade_tp_pips: float = 60
+    auto_trade_min_score: float = 0.5
+    auto_trade_max_positions: int = 3
+
     class Config:
         env_file = ".env"
 

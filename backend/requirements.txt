@@ -8,3 +8,4 @@ python-dotenv==1.0.1
 pandas==2.2.3
 numpy==2.1.1
 apscheduler==3.10.4
+MetaTrader5>=5.0.45; sys_platform == "win32"

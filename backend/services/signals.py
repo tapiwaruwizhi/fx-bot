@@ -1,7 +1,8 @@
 """Technical signal generation.
 
 Starter strategies:
-  * SMA(20) vs SMA(50) crossover on daily bars
+  * SMA(20) vs SMA(50) crossover (MT5 bars at MT5_TIMEFRAME when MT5 is
+    connected, otherwise daily ECB rates)
   * RSI(14) overbought/oversold
 
 Replace / extend with your own strategies. Each returns a Signal object
@@ -16,6 +17,7 @@ import pandas as pd
 
 from config import settings
 from models import Signal
+from services import mt5_client
 from services.market_data import usd_history, pair_series
 
 
@@ -77,16 +79,22 @@ def _rsi_signal(df: pd.DataFrame, pair: str) -> Optional[Signal]:
 
 
 def generate_signals() -> List[Signal]:
-    try:
-        usd_df = usd_history()
-    except Exception as e:
-        print(f"[signals] failed: {e}")
-        return []
+    use_mt5 = mt5_client.connect()
+    usd_df = None
+    if not use_mt5:
+        try:
+            usd_df = usd_history()
+        except Exception as e:
+            print(f"[signals] failed: {e}")
+            return []
 
     signals: List[Signal] = []
     for pair in settings.fx_pairs:
         try:
-            df = pd.DataFrame({"Close": pair_series(pair, usd_df)})
+            if use_mt5:
+                df = mt5_client.rates(pair).iloc[:-1]  # drop the still-forming bar
+            else:
+                df = pd.DataFrame({"Close": pair_series(pair, usd_df)})
             for fn in (_sma_cross, _rsi_signal):
                 sig = fn(df, pair)
                 if sig:
