@@ -8,6 +8,8 @@ Rule per pair:
   * net >=  AUTO_TRADE_MIN_SCORE  -> want LONG
   * net <= -AUTO_TRADE_MIN_SCORE  -> want SHORT
   * otherwise                     -> do nothing
+  * no new trades on the weekend, or just after the Sunday open / before
+    the Friday close (see services/market_hours.py)
   * at most one bot position per pair (identified by the magic number);
     an opposite position is closed before the new one is opened.
 """
@@ -17,7 +19,7 @@ from typing import List
 
 from config import settings
 from models import Signal
-from services import mt5_client
+from services import market_hours, mt5_client
 
 
 def _net_scores(signals: List[Signal]) -> dict[str, float]:
@@ -33,6 +35,10 @@ def _net_scores(signals: List[Signal]) -> dict[str, float]:
 def run(signals: List[Signal]) -> list[dict]:
     """Act on the latest signals. Returns a log of actions taken."""
     if not settings.auto_trade_enabled:
+        return []
+    allowed, reason = market_hours.trading_window()
+    if not allowed:
+        print(f"[trader] not trading: {reason}")
         return []
     if not mt5_client.connect():
         print("[trader] MT5 not connected; skipping")

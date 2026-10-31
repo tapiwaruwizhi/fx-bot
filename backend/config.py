@@ -60,6 +60,8 @@ class Settings(BaseSettings):
     auto_trade_tp_pips: float = 60
     auto_trade_min_score: float = 0.5
     auto_trade_max_positions: int = 3
+    auto_trade_skip_after_open_hours: float = 2    # no new trades for this long after the Sunday open
+    auto_trade_stop_before_close_hours: float = 2  # no new trades this close to the Friday close
 
     class Config:
         env_file = ".env"

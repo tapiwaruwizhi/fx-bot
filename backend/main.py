@@ -27,7 +27,7 @@ from services.news import fetch_all_news
 from services.prices import fetch_prices
 from services.signals import generate_signals
 from services.calendar import fetch_calendar
-from services import mt5_client, trader
+from services import market_hours, mt5_client, trader
 
 
 # --- in-memory cache -------------------------------------------------------
@@ -167,7 +167,13 @@ def health() -> dict:
             "available": mt5_client.mt5 is not None,
             "auto_trade": settings.auto_trade_enabled,
         },
+        "trading_window": _trading_window(),
     }
+
+
+def _trading_window() -> dict:
+    allowed, reason = market_hours.trading_window()
+    return {"allowed": allowed, "reason": reason}
 
 
 @app.get("/api/news", response_model=List[NewsItem])
@@ -203,6 +209,7 @@ def get_account() -> dict:
         "account": account,
         "positions": mt5_client.positions() if account else [],
         "auto_trade_enabled": settings.auto_trade_enabled,
+        "trading_window": _trading_window(),
         "recent_trades": Cache.trades[-20:],
     }
 

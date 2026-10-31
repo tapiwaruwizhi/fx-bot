@@ -75,7 +75,7 @@ MT5_PATH=C:\Program Files\ADS Securities MT5 Terminal\terminal64.exe
 
 Prices then come from live MT5 ticks and signals from MT5 bars (`MT5_TIMEFRAME`, default H1). `/api/account` shows balance, equity and open positions.
 
-Auto-trading (`AUTO_TRADE_ENABLED=true`) is off by default and **only trades on demo accounts** — it refuses to send orders if the logged-in account isn't a demo. It also needs **Algo Trading** switched on in the MT5 toolbar. Orders are tagged with `MT5_MAGIC`, one position per pair. See `services/trader.py` for the rules.
+Auto-trading (`AUTO_TRADE_ENABLED=true`) is off by default and **only trades on demo accounts** — it refuses to send orders if the logged-in account isn't a demo. It also needs **Algo Trading** switched on in the MT5 toolbar. Orders are tagged with `MT5_MAGIC`, one position per pair. It opens no new trades on the weekend, in the first `AUTO_TRADE_SKIP_AFTER_OPEN_HOURS` (default 2) after the Sunday open, or in the last `AUTO_TRADE_STOP_BEFORE_CLOSE_HOURS` (default 2) before the Friday close; `/health` shows the current trading window. See `services/trader.py` for the rules.
 
 This can't run on Render/Linux: the MetaTrader5 package needs the Windows terminal next to it. Without MT5 the backend falls back to Frankfurter.
 
