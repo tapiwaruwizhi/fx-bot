@@ -79,6 +79,18 @@ Auto-trading (`AUTO_TRADE_ENABLED=true`) is off by default and **only trades on 
 
 This can't run on Render/Linux: the MetaTrader5 package needs the Windows terminal next to it. Without MT5 the backend falls back to Frankfurter.
 
+### Run at Windows logon
+
+`scripts\install-startup.ps1` registers a scheduled task, "FX Bot", that runs `scripts\start-bot.ps1` one minute after you log in. The launcher opens the MT5 terminal (from `MT5_PATH`) if it isn't running, waits 30 s for it to log in, then runs the backend via `backend\run_bot.py` on `http://127.0.0.1:8000` and restarts it if it stops.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install-startup.ps1 -StartNow   # install + start now
+powershell -ExecutionPolicy Bypass -File scripts\stop-bot.ps1                     # stop the bot (MT5 stays open)
+powershell -ExecutionPolicy Bypass -File scripts\install-startup.ps1 -Uninstall  # remove the task
+```
+
+Log: `backend\logs\bot-YYYY-MM-DD.log`. The task runs in your desktop session (MT5 needs one), so it starts when you log in, not at power-on.
+
 ### Frontend
 
 ```powershell
