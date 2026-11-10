@@ -19,6 +19,8 @@ dist/
 !.env.example
 
 # Logs / local data
+data/
+backtests/
 *.log
 *.sqlite3
 *.db

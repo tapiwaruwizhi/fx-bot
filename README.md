@@ -79,6 +79,21 @@ Auto-trading (`AUTO_TRADE_ENABLED=true`) is off by default and **only trades on 
 
 This can't run on Render/Linux: the MetaTrader5 package needs the Windows terminal next to it. Without MT5 the backend falls back to Frankfurter.
 
+### Backtest and live stats
+
+`backend\backtest.py` replays the auto-trader's exact rules (signals, score threshold, trading window, SL/TP, max positions, spread) over MT5 price history and compares settings. It only reads history; it never places orders. MT5 must be open.
+
+```powershell
+cd backend
+.venv\Scripts\python.exe backtest.py                        # H1/M15/H4 x 3 scores x 3 SL/TP, 1 year
+.venv\Scripts\python.exe backtest.py --days 730 --timeframes H4 --sl-tp 40/80,50/100,60/120
+.venv\Scripts\python.exe backtest.py --help
+```
+
+Results print as a table (sorted by profit; `<-` marks your current `.env` settings) and are saved to `backend\backtests\`. Price history is cached in `backend\data\`, so `--offline` re-runs without MT5. Trust a setting only if `profit_factor` is above about 1.2 and both `1st_half` and `2nd_half` are positive.
+
+`/api/stats?days=30` reports the bot's real closed demo trades from MT5: win rate, average win/loss, profit factor, results per pair and how trades closed (sl / tp / bot).
+
 ### Run at Windows logon
 
 `scripts\install-startup.ps1` registers a scheduled task, "FX Bot", that runs `scripts\start-bot.ps1` one minute after you log in. The launcher opens the MT5 terminal (from `MT5_PATH`) if it isn't running, waits 30 s for it to log in, then runs the backend via `backend\run_bot.py` on `http://127.0.0.1:8000` and restarts it if it stops.

@@ -10,6 +10,7 @@ and is not thread-safe, so every call goes through `_lock`.
 """
 from __future__ import annotations
 import threading
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import pandas as pd
@@ -25,6 +26,7 @@ _lock = threading.RLock()
 _connected = False
 
 TIMEFRAMES = {
+    "M5": "TIMEFRAME_M5",
     "M15": "TIMEFRAME_M15",
     "M30": "TIMEFRAME_M30",
     "H1": "TIMEFRAME_H1",
@@ -257,3 +259,78 @@ def _result(result) -> dict:
         "price": result.price,
         "volume": result.volume,
     }
+
+
+# --- history (backtesting and trade stats) ---------------------------------
+
+def history(pair: str, timeframe: str, count: int) -> tuple[pd.DataFrame, dict]:
+    """Bars for backtesting, oldest first, plus facts about the symbol.
+
+    The index is the broker's *server* time; MT5 doesn't say which timezone
+    that is, so backtest.py works it out. Columns: Open/High/Low/Close and
+    Spread (in price units, e.g. 0.00012).
+    """
+    if not connect():
+        raise RuntimeError("MT5 not connected")
+    tf = getattr(mt5, TIMEFRAMES[timeframe])
+    sym = symbol(pair)
+    with _lock:
+        _ensure_symbol(sym)
+        info = mt5.symbol_info(sym)
+        data = mt5.copy_rates_from_pos(sym, tf, 0, count)
+        t = mt5.symbol_info_tick(sym)
+        pip = _pip(info)
+        price = t.bid if t is not None and t.bid else None
+        per_pip = (mt5.order_calc_profit(mt5.ORDER_TYPE_BUY, sym, 1.0, price, price + pip)
+                   if price else None)
+    if data is None or len(data) == 0:
+        raise RuntimeError(f"no history for {sym}: {mt5.last_error()}")
+    df = pd.DataFrame(data)
+    df.index = pd.to_datetime(df["time"], unit="s")  # naive = broker server time
+    df = df.rename(columns=str.capitalize)
+    df["Spread"] = df["Spread"] * info.point
+    meta = {"symbol": sym, "pip": pip, "digits": info.digits,
+            "profit_per_pip_per_lot": per_pip}  # in the account currency
+    return df[["Open", "High", "Low", "Close", "Spread"]], meta
+
+
+def bot_deals(days: int = 30) -> list[dict]:
+    """The bot's closed trades (positions opened with MT5_MAGIC) from the last `days`."""
+    if not connect():
+        return []
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(days=days)
+    # Deal times are broker server time, which can run ahead of UTC: pad the range,
+    # and look further back for the opening deals of positions closed in range.
+    with _lock:
+        deals = mt5.history_deals_get(start - timedelta(days=30), now + timedelta(days=1)) or ()
+    opened = {d.position_id: d for d in deals
+              if d.magic == settings.mt5_magic and d.entry == mt5.DEAL_ENTRY_IN}
+    reasons = {}
+    for name in ("SL", "TP", "SO", "EXPERT", "CLIENT", "MOBILE", "WEB"):
+        code = getattr(mt5, f"DEAL_REASON_{name}", None)
+        if code is not None:
+            reasons[code] = {"SO": "stop_out", "EXPERT": "bot"}.get(name, name.lower())
+
+    out = []
+    for d in deals:
+        if d.position_id not in opened or d.entry not in (mt5.DEAL_ENTRY_OUT, mt5.DEAL_ENTRY_OUT_BY):
+            continue
+        if d.time < start.timestamp():
+            continue
+        o = opened[d.position_id]
+        profit = (d.profit + d.swap + d.commission + getattr(d, "fee", 0.0)
+                  + o.commission + getattr(o, "fee", 0.0))
+        out.append({
+            "position": d.position_id,
+            "symbol": d.symbol,
+            "direction": "BUY" if o.type == mt5.DEAL_TYPE_BUY else "SELL",
+            "volume": d.volume,
+            "open_price": o.price,
+            "close_price": d.price,
+            "opened_server_time": datetime.utcfromtimestamp(o.time).isoformat(),
+            "closed_server_time": datetime.utcfromtimestamp(d.time).isoformat(),
+            "profit": round(profit, 2),
+            "close_reason": reasons.get(d.reason, str(d.reason)),
+        })
+    return sorted(out, key=lambda t: t["closed_server_time"])

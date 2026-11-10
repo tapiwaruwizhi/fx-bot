@@ -9,6 +9,7 @@ GET  /api/prices          — latest FX prices
 GET  /api/calendar        — economic calendar
 GET  /api/snapshot        — everything in one call (used by dashboard on load)
 GET  /api/account         — MT5 account, open positions, recent auto-trades
+GET  /api/stats?days=30    — results of the bot's closed demo trades
 WS   /ws                  — pushes snapshots as they refresh
 """
 from __future__ import annotations
@@ -27,7 +28,7 @@ from services.news import fetch_all_news
 from services.prices import fetch_prices
 from services.signals import generate_signals
 from services.calendar import fetch_calendar
-from services import market_hours, mt5_client, trader
+from services import market_hours, mt5_client, performance, trader
 
 
 # --- in-memory cache -------------------------------------------------------
@@ -212,6 +213,12 @@ def get_account() -> dict:
         "trading_window": _trading_window(),
         "recent_trades": Cache.trades[-20:],
     }
+
+
+@app.get("/api/stats")
+def get_stats(days: int = 30) -> dict:
+    """Win rate, profit factor and per-pair results of the bot's closed trades."""
+    return performance.bot_trade_stats(days)
 
 
 @app.websocket("/ws")
